@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>SSE: Basic With Sleep: Simple OOP and Two Instances</title>
+    <style>
+        pre {
+            float: left;
+            margin: 10px;
+        }
+    </style>
+</head>
+<body>
+<pre id="x">Initializing X...</pre>
+<pre id="y">Initializing Y...</pre>
+<button onClick="x()">X Fetch</button>
+<button onClick="y()">Y Fetch</button>
+<script src=eventsource-polyfill.js></script>
+<script>
+    function SSE(url, domId) {
+        var es = null;
+        var keepaliveSecs = 5;
+        var keepaliveTimer = null;
+        var end = false
+        var retryTime = 0
+
+
+        function gotActivity() {
+            if (keepaliveTimer != null)
+                clearTimeout(keepaliveTimer);
+            keepaliveTimer = setTimeout(
+                connect, keepaliveSecs * 1000);
+        }
+
+        function connect() {
+            document.getElementById(domId).innerHTML += "\nIn connect";
+            if (end) return;
+            if (es) {
+                es.close();
+                retryTime += 1
+                if (retryTime > 3) {
+                    console.log("max retries hit")
+                    return;
+                }
+            }
+            gotActivity();
+            es = new EventSourcePolyfill(url, {withCredentials: true});
+            // es = new EventSourcePolyfill(url, {headers: {"Last-Event-ID": "TEST_ID"}});
+            es.addEventListener("message",
+                function (e) {
+                    processOneLine(e.data);
+                },
+                false);
+            es.addEventListener("error",
+                function (e) {
+                    document.getElementById(domId).innerHTML += "\n" + e;
+                    console.log(e);
+                },
+                false);
+        }
+
+        function processOneLine(s) {
+            gotActivity();
+            document.getElementById(domId).innerHTML += "\n" + s;
+            if (s === 'DONE') {
+                end = true;
+                clearTimeout(keepaliveTimer);
+                if (es) es.close();
+                return
+            }
+            try {
+                var d = JSON.parse(s);
+                console.log(d)
+            } catch (e) {
+                console.log(e)
+            }
+        }
+
+        connect();
+    }
+
+    function x() {
+        setTimeout(function () {
+            new SSE("http://127.0.0.1:8888/sse/v1", "x");
+        }, 100);
+    }
+
+    function y() {
+        setTimeout(function () {
+            new SSE("http://127.0.0.1:8888/sse/v2", "y");
+        }, 2000);
+    }
+</script>
+</body>
+</html>
